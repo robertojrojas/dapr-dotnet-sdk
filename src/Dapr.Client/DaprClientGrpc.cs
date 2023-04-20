@@ -956,9 +956,60 @@ namespace Dapr.Client
             }
             catch (RpcException ex)
             {
+                PrintRpcExceptionDetails(ex);
                 throw new DaprException("State operation failed: the Dapr endpoint indicated a failure. See InnerException for details.", ex);
             }
         }
+
+         private static void PrintRpcExceptionDetails(RpcException ex)
+        {
+            byte[] statusBytes = null;
+
+            // There are nicer access methods in forthcoming versions of
+            // gRPC#. For now, walk all the items and take the last one
+            // that matches.
+            foreach (Metadata.Entry me in ex.Trailers)
+            {
+                Console.WriteLine($"PrintRpcExceptionDetails - checking key {me.Key}");
+                if (me.Key == "grpc-status-details-bin")
+                {
+                    statusBytes = me.ValueBytes;
+                }
+            }
+
+            if (statusBytes is null)
+            {
+                Console.WriteLine($"statusBytes is null! ");
+                return;
+            }
+
+            var status = Google.Rpc.Status.Parser.ParseFrom(statusBytes);
+            
+            foreach (Any any in status.Details)
+            {
+                PrintAny(any);
+            }
+        }
+
+        private static void PrintAny(Any any)
+        {
+            // Fallback to printing the any directly, which will include the
+            // type URL at a minimum
+            object objToPrint = any;
+
+    
+            if (any.TryUnpack(out Google.Rpc.ErrorInfo br))
+            {
+                objToPrint = br;
+            }
+            else if (any.TryUnpack(out Google.Rpc.ResourceInfo pf))
+            {
+                objToPrint = pf;
+            }
+
+            Console.WriteLine($"  {objToPrint}");
+        }
+   
 
 
         /// <inheritdoc/>
